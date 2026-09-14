@@ -1,0 +1,53 @@
+name: Build Windows x64 Only
+
+on:
+  workflow_dispatch: # 支持网页按钮一键手动触发
+  push:
+    branches:
+      - main # 如果你的主分支是 main/master，推送代码也会自动触发
+
+jobs:
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive # 递归拉取全部子模块（必须）
+          fetch-depth: 0
+
+      - name: Setup MSVC & Ninja
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          version: 1.11.1
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DENABLE_VCPKG=ON
+
+      - name: Build Cemu
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Package Windows Artifacts
+        shell: pwsh
+        run: |
+          # 收集 bin 目录下的产物并归档
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item -Path "bin/*" -Destination "dist/" -Recurse
+          Compress-Archive -Path "dist/*" -DestinationPath "cemu-windows-x64.zip"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cemu-windows-x64
+          path: cemu-windows-x64.zip
+          retention-days: 7
